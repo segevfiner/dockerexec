@@ -49,7 +49,7 @@ type Cmd struct {
 
 	// TODO Add callback BeforeStart (For users that want to start stats or event monitoring)
 
-	// TODO os/exec has a os.Process object, which also has methods
+	// TODO "os/exec" has an os.Process object, which also has methods
 	ContainerID string
 	Warnings    []string
 
