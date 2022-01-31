@@ -1,7 +1,7 @@
 // Package dockerexec runs a command in a container. It wraps the Docker API to make it easier to
 // remap stdin and stdout, connect I/O with pipes, and do other adjustments.
 //
-// This is essentially an "os/exec" like interface to running a command in a container.
+// This is essentially an "os/exec" like interface for running a command in a container.
 package dockerexec
 
 import (
