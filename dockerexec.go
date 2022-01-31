@@ -1,3 +1,7 @@
+// Package dockerexec runs a command in a container. It wraps the Docker API to make it easier to
+// remap stdin and stdout, connect I/O with pipes, and do other adjustments.
+//
+// This is essentially an "os/exec" like interface to running a command in a container.
 package dockerexec
 
 import (
@@ -18,9 +22,17 @@ import (
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
+// Cmd represents a container being prepared or run.
+//
+// A Cmd cannot be reused after calling its Run, Output or CombinedOutput
+// methods.
 type Cmd struct {
-	// TODO Doc (Including fields handled specially)
-	// TODO Warn about StdinOnce
+	// The configuration of the container to be ran.
+	//
+	// Some properties are handled specially:
+	// 		* AutoRemove default to true.
+	//		* StdinOnce defaults to true, and you should be careful unsetting it (https://github.com/moby/moby/issues/38457).
+	//		* OpenStdin will be set automatically as needed.
 	Config           *container.Config
 	HostConfig       *container.HostConfig
 	Networkingconfig *network.NetworkingConfig
@@ -41,6 +53,9 @@ type Cmd struct {
 	//
 	// If either is nil, the corresponding output will be discarded.
 	//
+	// While using Config.Tty, only a single stream of output is available in Stdout. Setting Stderr
+	// will panic.
+	//
 	// During the execution of the command a separate goroutine reads from the container and
 	// delivers that data to the corresponding Writer. In this case, Wait does not complete until
 	// the goroutine reaches EOF or encounters an error.
@@ -49,10 +64,19 @@ type Cmd struct {
 
 	// TODO Add callback BeforeStart (For users that want to start stats or event monitoring)
 
-	// TODO "os/exec" has an os.Process object, which also has methods
-	ContainerID string
-	Warnings    []string
+	// TODO "os/exec" has an os.Process object, which also has methods to Kill & Wait, etc.
+	// We also don't support starting a detached container with this API which in plain "os/exec" is
+	// done by directly calling os.StartProcess
 
+	// ContainerID is the ID of the container, once started.
+	ContainerID string
+
+	// Warnings contains any warnings from creating the container.
+	//
+	// You should consider logging these.
+	Warnings []string
+
+	// StatusCode contains the status code of the container, available after a call to Wait or Run.
 	StatusCode int64
 
 	ctx              context.Context // nil means None
@@ -124,7 +148,6 @@ func (c *Cmd) closeDescriptors(closers []io.Closer) {
 	}
 }
 
-// TODO
 // Run starts the specified container and waits for it to complete.
 //
 // The returned error is nil if the container runs, has no problems
@@ -176,12 +199,19 @@ func (c *Cmd) stdoutStderr(attach types.HijackedResponse) {
 	})
 }
 
-// TODO Doc
+// Start starts the specified container but does not wait for it to complete.
+//
+// If Start returns successfully, the c.ContainerID field will be set.
+//
+// The Wait method will return the exit code and release associated resources
+// once the command exits.
 func (c *Cmd) Start() error {
 	if len(c.ContainerID) != 0 {
 		return errors.New("dockerexec: already started")
 	}
-	// TODO Validate c.Config.Tty and c.Stderr
+	if c.Config.Tty && c.Stderr != nil {
+		return errors.New("dockerexec: can't set both Config.Tty and Stderr")
+	}
 
 	var ctx context.Context
 	if c.ctx != nil {
@@ -234,6 +264,7 @@ func (c *Cmd) Start() error {
 	}
 
 	if c.Stdin != nil {
+		c.Config.OpenStdin = true
 		c.stdin(attach)
 	}
 
@@ -303,7 +334,22 @@ func (e *ExitError) Error() string {
 	return fmt.Sprintf("exit status %d", e.StatusCode)
 }
 
-// TODO Doc
+// Wait waits for the container to exit and waits for any copying to
+// stdin or copying from stdout or stderr to complete.
+//
+// The container must have been started by Start.
+//
+// The returned error is nil if the container runs, has no problems
+// copying stdin, stdout, and stderr, and exits with a zero exit
+// status.
+//
+// If the container fails to run or doesn't complete successfully, the
+// error is of type *ExitError. Other error types may be
+// returned for I/O problems.
+//
+// Wait also waits for the respective I/O loop copying to or from the process to complete.
+//
+// Wait releases any resources associated with the Cmd.
 func (c *Cmd) Wait() error {
 	var err error
 
