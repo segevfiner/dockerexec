@@ -30,9 +30,9 @@ type Cmd struct {
 	// The configuration of the container to be ran.
 	//
 	// Some properties are handled specially:
-	// 		* AutoRemove default to true.
-	//		* StdinOnce defaults to true, and you should be careful unsetting it (https://github.com/moby/moby/issues/38457).
-	//		* OpenStdin will be set automatically as needed.
+	// 		* HostConfig.AutoRemove default to true.
+	//		* Config.StdinOnce defaults to true, and you should be careful unsetting it (https://github.com/moby/moby/issues/38457).
+	//		* Config.OpenStdin will be set automatically as needed.
 	Config           *container.Config
 	HostConfig       *container.HostConfig
 	Networkingconfig *network.NetworkingConfig
@@ -229,6 +229,10 @@ func (c *Cmd) Start() error {
 		ctx = context.Background()
 	}
 
+	if c.Stdin != nil {
+		c.Config.OpenStdin = true
+	}
+
 	cont, err := c.cli.ContainerCreate(
 		ctx,
 		c.Config,
@@ -264,7 +268,6 @@ func (c *Cmd) Start() error {
 	}
 
 	if c.Stdin != nil {
-		c.Config.OpenStdin = true
 		c.stdin(attach)
 	}
 
