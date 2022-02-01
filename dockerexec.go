@@ -268,6 +268,7 @@ func (c *Cmd) Start() error {
 		})
 		return err
 	}
+	c.closeAfterWait = append(c.closeAfterWait, attach.Conn)
 
 	if c.Stdin != nil {
 		c.stdin(attach)
