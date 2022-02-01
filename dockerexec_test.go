@@ -177,11 +177,20 @@ func TestStartWait(t *testing.T) {
 	assert.Equal(t, "Hello, World!\n", stdout.String())
 }
 
-func TestTty(t *testing.T) {
+func TestTtyOutput(t *testing.T) {
 	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "tty")
 	cmd.Config.Tty = true
 
 	output, err := cmd.Output()
+	require.NoError(t, err)
+	assert.Contains(t, string(output), "/dev/pts")
+}
+
+func TestTtyCombinedOutput(t *testing.T) {
+	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "tty")
+	cmd.Config.Tty = true
+
+	output, err := cmd.CombinedOutput()
 	require.NoError(t, err)
 	assert.Contains(t, string(output), "/dev/pts")
 }

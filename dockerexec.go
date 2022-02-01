@@ -431,7 +431,9 @@ func (c *Cmd) CombinedOutput() ([]byte, error) {
 	}
 	var b bytes.Buffer
 	c.Stdout = &b
-	c.Stderr = &b
+	if !c.Config.Tty {
+		c.Stderr = &b
+	}
 	err := c.Run()
 	return b.Bytes(), err
 }
