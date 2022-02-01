@@ -1,7 +1,7 @@
 // Package dockerexec runs a command in a container. It wraps the Docker API to make it easier to
 // remap stdin and stdout, connect I/O with pipes, and do other adjustments.
 //
-// This is essentially an "os/exec" like interface for running a command in a container.
+// Essentially an "os/exec" like interface for running a command in a container.
 package dockerexec
 
 import (
@@ -30,9 +30,9 @@ type Cmd struct {
 	// The configuration of the container to be ran.
 	//
 	// Some properties are handled specially:
-	// 		* HostConfig.AutoRemove default to true.
-	//		* Config.StdinOnce defaults to true, and you should be careful unsetting it (https://github.com/moby/moby/issues/38457).
-	//		* Config.OpenStdin will be set automatically as needed.
+	//     * HostConfig.AutoRemove default to true.
+	//	   * Config.StdinOnce defaults to true, and you should be careful unsetting it (https://github.com/moby/moby/issues/38457).
+	//	   * Config.OpenStdin will be set automatically as needed.
 	Config           *container.Config
 	HostConfig       *container.HostConfig
 	Networkingconfig *network.NetworkingConfig
@@ -43,20 +43,20 @@ type Cmd struct {
 	//
 	// If Stdin is nil, the container will receive no input.
 	//
-	// During the execution of the command a separate goroutine reads from Stdin and
+	// During the execution of the container a separate goroutine reads from Stdin and
 	// delivers that data to the container. In this case, Wait does not complete until the goroutine
 	// stops copying, either because it has reached the end of Stdin (EOF or a read error) or
 	// because writing to the container.
 	Stdin io.Reader
 
-	// Stdout and Stderr specify the process's standard output and error.
+	// Stdout and Stderr specify the container's standard output and error.
 	//
 	// If either is nil, the corresponding output will be discarded.
 	//
 	// While using Config.Tty, only a single stream of output is available in Stdout. Setting Stderr
 	// will panic.
 	//
-	// During the execution of the command a separate goroutine reads from the container and
+	// During the execution of the container a separate goroutine reads from the container and
 	// delivers that data to the corresponding Writer. In this case, Wait does not complete until
 	// the goroutine reaches EOF or encounters an error.
 	Stdout io.Writer
@@ -204,7 +204,7 @@ func (c *Cmd) stdoutStderr(attach types.HijackedResponse) {
 // If Start returns successfully, the c.ContainerID field will be set.
 //
 // The Wait method will return the exit code and release associated resources
-// once the command exits.
+// once the container exits.
 func (c *Cmd) Start() error {
 	if len(c.ContainerID) != 0 {
 		return errors.New("dockerexec: already started")
@@ -350,7 +350,7 @@ func (e *ExitError) Error() string {
 // error is of type *ExitError. Other error types may be
 // returned for I/O problems.
 //
-// Wait also waits for the respective I/O loop copying to or from the process to complete.
+// Wait also waits for the respective I/O loop copying to or from the container to complete.
 //
 // Wait releases any resources associated with the Cmd.
 func (c *Cmd) Wait() error {
@@ -436,9 +436,9 @@ func (c *Cmd) CombinedOutput() ([]byte, error) {
 
 // StdinPipe returns a pipe that will be connected to the container's
 // standard input when the container starts.
-// The pipe will be closed automatically after Wait sees the command exit.
+// The pipe will be closed automatically after Wait sees the container exit.
 // A caller need only call Close to force the pipe to close sooner.
-// For example, if the command being run will not exit until standard input
+// For example, if the container being run will not exit until standard input
 // is closed, the caller must close the pipe.
 func (c *Cmd) StdinPipe() (io.WriteCloser, error) {
 	if c.Stdin != nil {
