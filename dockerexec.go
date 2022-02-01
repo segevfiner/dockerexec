@@ -365,6 +365,7 @@ func (c *Cmd) Wait() error {
 	if c.finished {
 		return errors.New("dockerexec: Wait was already called")
 	}
+	c.finished = true
 
 	select {
 	case waitResult := <-c.waitCh:
