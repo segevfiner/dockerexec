@@ -114,3 +114,22 @@ func TestExitStatus(t *testing.T) {
 		assert.Equal(t, int64(42), err.StatusCode)
 	}
 }
+
+func TestExitCode(t *testing.T) {
+	// Test that exit code are returned correctly
+	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "exit 42")
+	cmd.Run()
+	assert.Equal(t, int64(42), cmd.StatusCode)
+
+	cmd = dockerexec.Command(dockerClient, testImage, "sh", "-c", "exit 255")
+	cmd.Run()
+	assert.Equal(t, int64(255), cmd.StatusCode)
+
+	cmd = dockerexec.Command(dockerClient, testImage, "cat")
+	cmd.Run()
+	assert.Equal(t, int64(0), cmd.StatusCode)
+
+	// Test when command does not call Run().
+	cmd = dockerexec.Command(dockerClient, testImage, "cat")
+	assert.Equal(t, int64(-1), cmd.StatusCode)
+}

@@ -105,6 +105,8 @@ func Command(cli client.APIClient, image string, name string, arg ...string) *Cm
 			AutoRemove: true,
 		},
 
+		StatusCode: -1,
+
 		cli: cli,
 	}
 }
