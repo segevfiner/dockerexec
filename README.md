@@ -1,8 +1,7 @@
 dockerexec
 ==========
 [![Go Reference](https://pkg.go.dev/badge/github.com/segevfiner/dockerexec.svg)](https://pkg.go.dev/github.com/segevfiner/dockerexec)
-
-:warning: Work in progress, might not work properly yet :warning:
+[![Build & Test](https://github.com/segevfiner/dockerexec/actions/workflows/go.yml/badge.svg)](https://github.com/segevfiner/dockerexec/actions/workflows/go.yml)
 
 An "os/exec" like interface for running a command in a container, and being able to easily interact
 with stdin, stdout, and other adjustments.
