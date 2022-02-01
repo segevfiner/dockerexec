@@ -406,7 +406,7 @@ func (c *Cmd) Output() ([]byte, error) {
 	var stdout bytes.Buffer
 	c.Stdout = &stdout
 
-	captureErr := c.Stderr == nil
+	captureErr := c.Stderr == nil && !c.Config.Tty
 	if captureErr {
 		c.Stderr = &prefixSuffixSaver{N: 32 << 10}
 	}

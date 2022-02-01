@@ -1,6 +1,7 @@
 package dockerexec_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -90,13 +91,13 @@ func TestCatFileRace(t *testing.T) {
 func TestCatGoodAndBadFile(t *testing.T) {
 	// Testing combined output and error values.
 	bs, err := dockerexec.Command(dockerClient, testImage, "cat", "/bogus/file.foo", "/etc/os-release").CombinedOutput()
-	assert.IsType(t, err, &dockerexec.ExitError{})
+	assert.IsType(t, &dockerexec.ExitError{}, err)
 
 	sp := strings.SplitN(string(bs), "\n", 2)
 	assert.Len(t, sp, 2)
 
 	errLine, body := sp[0], sp[1]
-	assert.True(t, strings.HasPrefix(errLine, "cat: /bogus/file.foo: No such file or directory"))
+	assert.True(t, strings.HasPrefix(errLine, "cat: /bogus/file.foo: No such file or directory"), errLine)
 	assert.Contains(t, body, "Ubuntu")
 }
 
@@ -112,6 +113,7 @@ func TestExitStatus(t *testing.T) {
 	require.Error(t, err)
 
 	if err, ok := err.(*dockerexec.ExitError); ok {
+		assert.EqualError(t, err, "exit status 42")
 		assert.Equal(t, int64(42), err.StatusCode)
 	}
 }
@@ -133,4 +135,53 @@ func TestExitCode(t *testing.T) {
 	// Test when command does not call Run().
 	cmd = dockerexec.Command(dockerClient, testImage, "cat")
 	assert.Equal(t, int64(-1), cmd.StatusCode)
+}
+
+func TestContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cmd := dockerexec.CommandContext(ctx, dockerClient, testImage, "sleep", "120")
+	cmd.Start()
+	cancel()
+	err := cmd.Wait()
+	assert.Error(t, err)
+	assert.IsType(t, context.Canceled, err)
+}
+
+func TestNilContext(t *testing.T) {
+	assert.Panics(t, func() {
+		//lint:ignore SA1012 Test for panic
+		dockerexec.CommandContext(nil, dockerClient, testImage, "cat")
+	})
+}
+
+func TestCmdString(t *testing.T) {
+	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "echo Hello, World!")
+	assert.Equal(t, "sh -c echo Hello, World!", cmd.String())
+}
+
+func TestStartWait(t *testing.T) {
+	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "echo Hello, World!")
+
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+
+	err := cmd.Start()
+	require.NoError(t, err)
+
+	err = cmd.Wait()
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(0), cmd.StatusCode)
+	assert.Equal(t, "Hello, World!\n", stdout.String())
+}
+
+func TestTty(t *testing.T) {
+	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "tty")
+	cmd.Config.Tty = true
+
+	output, err := cmd.Output()
+	require.NoError(t, err)
+	assert.Contains(t, string(output), "/dev/pts")
 }
