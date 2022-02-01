@@ -85,3 +85,32 @@ func TestCatFileRace(t *testing.T) {
 
 	<-wrote
 }
+
+func TestCatGoodAndBadFile(t *testing.T) {
+	// Testing combined output and error values.
+	bs, err := dockerexec.Command(dockerClient, testImage, "cat", "/bogus/file.foo", "/etc/os-release").CombinedOutput()
+	assert.IsType(t, err, &dockerexec.ExitError{})
+
+	sp := strings.SplitN(string(bs), "\n", 2)
+	assert.Len(t, sp, 2)
+
+	errLine, body := sp[0], sp[1]
+	assert.True(t, strings.HasPrefix(errLine, "cat: /bogus/file.foo: No such file or directory"))
+	assert.Contains(t, body, "Ubuntu")
+}
+
+func TestNoExistExecutable(t *testing.T) {
+	// Can't run a non-existent executable
+	err := dockerexec.Command(dockerClient, testImage, "/no-exist-executable").Run()
+	assert.Error(t, err)
+}
+
+func TestExitStatus(t *testing.T) {
+	// Test that exit values are returned correctly
+	err := dockerexec.Command(dockerClient, testImage, "sh", "-c", "exit 42").Run()
+	require.Error(t, err)
+
+	if err, ok := err.(*dockerexec.ExitError); ok {
+		assert.Equal(t, int64(42), err.StatusCode)
+	}
+}
