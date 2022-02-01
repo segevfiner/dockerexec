@@ -1,9 +1,11 @@
 package dockerexec_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -90,7 +92,7 @@ func TestCatFileRace(t *testing.T) {
 
 func TestCatGoodAndBadFile(t *testing.T) {
 	// Testing combined output and error values.
-	bs, err := dockerexec.Command(dockerClient, testImage, "cat", "/bogus/file.foo", "/etc/os-release").CombinedOutput()
+	bs, err := dockerexec.Command(dockerClient, testImage, "sh", "-c", "cat /bogus/file.foo; sleep 1; cat /etc/os-release; exit 1").CombinedOutput()
 	assert.IsType(t, &dockerexec.ExitError{}, err)
 
 	sp := strings.SplitN(string(bs), "\n", 2)
@@ -115,6 +117,8 @@ func TestExitStatus(t *testing.T) {
 	if err, ok := err.(*dockerexec.ExitError); ok {
 		assert.EqualError(t, err, "exit status 42")
 		assert.Equal(t, int64(42), err.StatusCode)
+	} else {
+		t.Fail()
 	}
 }
 
@@ -137,6 +141,45 @@ func TestExitCode(t *testing.T) {
 	assert.Equal(t, int64(-1), cmd.StatusCode)
 }
 
+func TestPipes(t *testing.T) {
+	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "echo stderr >&2; cat")
+
+	stdin, err := cmd.StdinPipe()
+	require.NoError(t, err)
+	stdout, err := cmd.StdoutPipe()
+	require.NoError(t, err)
+	stderr, err := cmd.StderrPipe()
+	require.NoError(t, err)
+
+	err = cmd.Start()
+	require.NoError(t, err)
+
+	_, err = stdin.Write([]byte("input\n"))
+	require.NoError(t, err)
+	stdin.Close()
+
+	outbr := bufio.NewReader(stdout)
+	errbr := bufio.NewReader(stderr)
+
+	line, _, err := errbr.ReadLine()
+	require.NoError(t, err)
+	assert.Equal(t, "stderr", string(line))
+	line, _, err = outbr.ReadLine()
+	require.NoError(t, err)
+	assert.Equal(t, "input", string(line))
+
+	buf, err := ioutil.ReadAll(outbr)
+	require.NoError(t, err)
+	assert.Empty(t, buf)
+
+	buf, err = ioutil.ReadAll(errbr)
+	require.NoError(t, err)
+	assert.Empty(t, buf)
+
+	err = cmd.Wait()
+	require.NoError(t, err)
+}
+
 func TestContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -156,12 +199,20 @@ func TestNilContext(t *testing.T) {
 	})
 }
 
+func TestStartCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	cmd := dockerexec.CommandContext(ctx, dockerClient, testImage, "sleep", "120")
+	assert.ErrorIs(t, cmd.Start(), context.Canceled)
+}
+
 func TestCmdString(t *testing.T) {
 	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "echo Hello, World!")
 	assert.Equal(t, "sh -c echo Hello, World!", cmd.String())
 }
 
-func TestStartWait(t *testing.T) {
+func TestStdoutStartWait(t *testing.T) {
 	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "echo Hello, World!")
 
 	var stdout bytes.Buffer
@@ -175,6 +226,22 @@ func TestStartWait(t *testing.T) {
 
 	assert.Equal(t, int64(0), cmd.StatusCode)
 	assert.Equal(t, "Hello, World!\n", stdout.String())
+}
+
+func TestStderrStartWait(t *testing.T) {
+	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "echo Hello, World!; echo stderr >&2")
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	err := cmd.Start()
+	require.NoError(t, err)
+
+	err = cmd.Wait()
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(0), cmd.StatusCode)
+	assert.Equal(t, "stderr\n", stderr.String())
 }
 
 func TestTtyOutput(t *testing.T) {
@@ -193,4 +260,59 @@ func TestTtyCombinedOutput(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err)
 	assert.Contains(t, string(output), "/dev/pts")
+}
+
+func TestNoTtyAndStderr(t *testing.T) {
+	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "echo Hello, World!")
+	cmd.Config.Tty = true
+
+	_, err := cmd.StderrPipe()
+	require.NoError(t, err)
+
+	err = cmd.Run()
+	assert.EqualError(t, err, "dockerexec: can't set both Config.Tty and Stderr")
+}
+
+func TestOutputError(t *testing.T) {
+	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "echo stderr >&2; exit 1")
+	output, err := cmd.Output()
+	assert.Error(t, err)
+	assert.Empty(t, output)
+	if err, ok := err.(*dockerexec.ExitError); ok {
+		assert.EqualError(t, err, "exit status 1")
+		assert.Equal(t, int64(1), err.StatusCode)
+		assert.Equal(t, "stderr\n", string(err.Stderr))
+	} else {
+		t.Fail()
+	}
+}
+
+func TestStartTwice(t *testing.T) {
+	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "echo Hello, World!")
+
+	err := cmd.Start()
+	require.NoError(t, err)
+
+	err = cmd.Start()
+	assert.EqualError(t, err, "dockerexec: already started")
+}
+
+func TestWaitWithoutStart(t *testing.T) {
+	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "echo Hello, World!")
+
+	err := cmd.Wait()
+	assert.EqualError(t, err, "dockerexec: not started")
+}
+
+func TestWaitTwice(t *testing.T) {
+	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "echo Hello, World!")
+
+	err := cmd.Start()
+	require.NoError(t, err)
+
+	err = cmd.Wait()
+	require.NoError(t, err)
+
+	err = cmd.Wait()
+	assert.EqualError(t, err, "dockerexec: Wait was already called")
 }
