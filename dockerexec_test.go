@@ -10,9 +10,10 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/segevfiner/dockerexec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/segevfiner/dockerexec"
 )
 
 const testImage = "ubuntu:focal"
