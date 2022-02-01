@@ -39,7 +39,10 @@ func TestMain(m *testing.M) {
 			}
 			defer pullOutput.Close()
 
-			jsonmessage.DisplayJSONMessagesStream(pullOutput, os.Stderr, 0, false, nil)
+			err = jsonmessage.DisplayJSONMessagesStream(pullOutput, os.Stderr, 0, false, nil)
+			if err != nil {
+				panic(err)
+			}
 		} else {
 			panic(err)
 		}
@@ -125,15 +128,15 @@ func TestExitStatus(t *testing.T) {
 func TestExitCode(t *testing.T) {
 	// Test that exit code are returned correctly
 	cmd := dockerexec.Command(dockerClient, testImage, "sh", "-c", "exit 42")
-	cmd.Run()
+	_ = cmd.Run()
 	assert.Equal(t, int64(42), cmd.StatusCode)
 
 	cmd = dockerexec.Command(dockerClient, testImage, "sh", "-c", "exit 255")
-	cmd.Run()
+	_ = cmd.Run()
 	assert.Equal(t, int64(255), cmd.StatusCode)
 
 	cmd = dockerexec.Command(dockerClient, testImage, "cat")
-	cmd.Run()
+	_ = cmd.Run()
 	assert.Equal(t, int64(0), cmd.StatusCode)
 
 	// Test when command does not call Run().
@@ -185,9 +188,11 @@ func TestContext(t *testing.T) {
 	defer cancel()
 
 	cmd := dockerexec.CommandContext(ctx, dockerClient, testImage, "sleep", "120")
-	cmd.Start()
+	err := cmd.Start()
+	require.NoError(t, err)
+
 	cancel()
-	err := cmd.Wait()
+	err = cmd.Wait()
 	assert.Error(t, err)
 	assert.IsType(t, context.Canceled, err)
 }
@@ -195,7 +200,7 @@ func TestContext(t *testing.T) {
 func TestNilContext(t *testing.T) {
 	assert.Panics(t, func() {
 		//lint:ignore SA1012 Test for panic
-		dockerexec.CommandContext(nil, dockerClient, testImage, "cat")
+		dockerexec.CommandContext(nil, dockerClient, testImage, "cat") //nolint:staticcheck
 	})
 }
 
