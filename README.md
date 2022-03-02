@@ -31,7 +31,7 @@ func main() {
     }
 
     cmd := dockerexec.Command(dockerClient, "ubuntu:focal", "sh", "-c", "echo Hello, World!")
-	output, err := cmd.Output()
+    output, err := cmd.Output()
     if err != nil {
         panic(err)
     }
