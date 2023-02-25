@@ -87,7 +87,7 @@ type Cmd struct {
 	closeAfterOutput []io.Closer
 	goroutine        []func() error
 	errch            chan error // one send per goroutine
-	waitCh           <-chan container.ContainerWaitOKBody
+	waitCh           <-chan container.WaitResponse
 	waitErrCh        <-chan error
 	waitDone         chan struct{}
 }

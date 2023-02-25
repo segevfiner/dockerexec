@@ -1,6 +1,6 @@
 module github.com/segevfiner/dockerexec
 
-go 1.17
+go 1.19
 
 require (
 	github.com/docker/docker v23.0.1+incompatible
