@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -171,11 +171,11 @@ func TestPipes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "input", string(line))
 
-	buf, err := ioutil.ReadAll(outbr)
+	buf, err := io.ReadAll(outbr)
 	require.NoError(t, err)
 	assert.Empty(t, buf)
 
-	buf, err = ioutil.ReadAll(errbr)
+	buf, err = io.ReadAll(errbr)
 	require.NoError(t, err)
 	assert.Empty(t, buf)
 
