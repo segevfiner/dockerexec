@@ -3,7 +3,7 @@ module github.com/segevfiner/dockerexec
 go 1.19
 
 require (
-	github.com/docker/docker v24.0.7+incompatible
+	github.com/docker/docker v24.0.9+incompatible
 	github.com/opencontainers/image-spec v1.1.0-rc2
 	github.com/stretchr/testify v1.8.2
 )
