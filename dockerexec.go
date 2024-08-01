@@ -19,7 +19,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
-	specs "github.com/opencontainers/image-spec/specs-go/v1"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // Cmd represents a container being prepared or run.
@@ -36,7 +36,7 @@ type Cmd struct {
 	Config           *container.Config
 	HostConfig       *container.HostConfig
 	Networkingconfig *network.NetworkingConfig
-	Platform         *specs.Platform
+	Platform         *ocispec.Platform
 	ContainerName    string
 
 	// Stdin specifies the container's standard input.
@@ -252,7 +252,7 @@ func (c *Cmd) Start() error {
 
 	c.Warnings = cont.Warnings
 
-	attach, err := c.cli.ContainerAttach(ctx, cont.ID, types.ContainerAttachOptions{
+	attach, err := c.cli.ContainerAttach(ctx, cont.ID, container.AttachOptions{
 		Stream: true,
 		Stdin:  c.Stdin != nil,
 		Stdout: c.Stdout != nil,
@@ -262,7 +262,7 @@ func (c *Cmd) Start() error {
 		c.closeDescriptors(c.closeAfterStdin)
 		c.closeDescriptors(c.closeAfterOutput)
 		c.closeDescriptors(c.closeAfterWait)
-		_ = c.cli.ContainerRemove(context.Background(), cont.ID, types.ContainerRemoveOptions{
+		_ = c.cli.ContainerRemove(context.Background(), cont.ID, container.RemoveOptions{
 			RemoveVolumes: true,
 			Force:         true,
 		})
@@ -280,12 +280,12 @@ func (c *Cmd) Start() error {
 
 	c.waitCh, c.waitErrCh = c.cli.ContainerWait(ctx, cont.ID, container.WaitConditionNextExit)
 
-	err = c.cli.ContainerStart(ctx, cont.ID, types.ContainerStartOptions{})
+	err = c.cli.ContainerStart(ctx, cont.ID, container.StartOptions{})
 	if err != nil {
 		c.closeDescriptors(c.closeAfterStdin)
 		c.closeDescriptors(c.closeAfterOutput)
 		c.closeDescriptors(c.closeAfterWait)
-		_ = c.cli.ContainerRemove(context.Background(), cont.ID, types.ContainerRemoveOptions{
+		_ = c.cli.ContainerRemove(context.Background(), cont.ID, container.RemoveOptions{
 			RemoveVolumes: true,
 			Force:         true,
 		})

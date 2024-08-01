@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 
 	if _, _, err := dockerClient.ImageInspectWithRaw(context.Background(), testImage); err != nil {
 		if client.IsErrNotFound(err) {
-			pullOutput, err := dockerClient.ImagePull(context.Background(), testImage, types.ImagePullOptions{})
+			pullOutput, err := dockerClient.ImagePull(context.Background(), testImage, image.PullOptions{})
 			if err != nil {
 				panic(err)
 			}
