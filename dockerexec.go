@@ -14,11 +14,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/client"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -165,7 +164,7 @@ func (c *Cmd) Run() error {
 	return c.Wait()
 }
 
-func (c *Cmd) stdin(attach types.HijackedResponse) {
+func (c *Cmd) stdin(attach client.ContainerAttachResult) {
 	c.goroutine = append(c.goroutine, func() error {
 		_, err := io.Copy(attach.Conn, c.Stdin)
 		if err1 := attach.CloseWrite(); err == nil {
@@ -176,7 +175,7 @@ func (c *Cmd) stdin(attach types.HijackedResponse) {
 	})
 }
 
-func (c *Cmd) stdoutStderr(attach types.HijackedResponse) {
+func (c *Cmd) stdoutStderr(attach client.ContainerAttachResult) {
 	c.goroutine = append(c.goroutine, func() error {
 		stdout := c.Stdout
 		if stdout == nil {
@@ -235,14 +234,13 @@ func (c *Cmd) Start() error {
 		c.Config.OpenStdin = true
 	}
 
-	cont, err := c.cli.ContainerCreate(
-		ctx,
-		c.Config,
-		c.HostConfig,
-		c.Networkingconfig,
-		c.Platform,
-		c.ContainerName,
-	)
+	cont, err := c.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Config:           c.Config,
+		HostConfig:       c.HostConfig,
+		NetworkingConfig: c.Networkingconfig,
+		Platform:         c.Platform,
+		Name:             c.ContainerName,
+	})
 	if err != nil {
 		c.closeDescriptors(c.closeAfterStdin)
 		c.closeDescriptors(c.closeAfterOutput)
@@ -252,7 +250,7 @@ func (c *Cmd) Start() error {
 
 	c.Warnings = cont.Warnings
 
-	attach, err := c.cli.ContainerAttach(ctx, cont.ID, container.AttachOptions{
+	attach, err := c.cli.ContainerAttach(ctx, cont.ID, client.ContainerAttachOptions{
 		Stream: true,
 		Stdin:  c.Stdin != nil,
 		Stdout: c.Stdout != nil,
@@ -262,7 +260,7 @@ func (c *Cmd) Start() error {
 		c.closeDescriptors(c.closeAfterStdin)
 		c.closeDescriptors(c.closeAfterOutput)
 		c.closeDescriptors(c.closeAfterWait)
-		_ = c.cli.ContainerRemove(context.Background(), cont.ID, container.RemoveOptions{
+		_, _ = c.cli.ContainerRemove(context.Background(), cont.ID, client.ContainerRemoveOptions{
 			RemoveVolumes: true,
 			Force:         true,
 		})
@@ -278,14 +276,17 @@ func (c *Cmd) Start() error {
 		c.stdoutStderr(attach)
 	}
 
-	c.waitCh, c.waitErrCh = c.cli.ContainerWait(ctx, cont.ID, container.WaitConditionNextExit)
+	waitResult := c.cli.ContainerWait(ctx, cont.ID, client.ContainerWaitOptions{
+		Condition: container.WaitConditionNextExit,
+	})
+	c.waitCh, c.waitErrCh = waitResult.Result, waitResult.Error
 
-	err = c.cli.ContainerStart(ctx, cont.ID, container.StartOptions{})
+	_, err = c.cli.ContainerStart(ctx, cont.ID, client.ContainerStartOptions{})
 	if err != nil {
 		c.closeDescriptors(c.closeAfterStdin)
 		c.closeDescriptors(c.closeAfterOutput)
 		c.closeDescriptors(c.closeAfterWait)
-		_ = c.cli.ContainerRemove(context.Background(), cont.ID, container.RemoveOptions{
+		_, _ = c.cli.ContainerRemove(context.Background(), cont.ID, client.ContainerRemoveOptions{
 			RemoveVolumes: true,
 			Force:         true,
 		})
@@ -310,7 +311,7 @@ func (c *Cmd) Start() error {
 			select {
 			case <-c.ctx.Done():
 				// TODO Graceful termination? Add kill method?
-				_ = c.cli.ContainerKill(context.Background(), cont.ID, "SIGKILL")
+				_, _ = c.cli.ContainerKill(context.Background(), cont.ID, client.ContainerKillOptions{Signal: "SIGKILL"})
 			case <-c.waitDone:
 			}
 		}()

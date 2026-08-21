@@ -3,7 +3,7 @@ package dockerexec_test
 import (
 	"fmt"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 	"github.com/segevfiner/dockerexec"
 )
 
