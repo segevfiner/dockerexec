@@ -10,9 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/jsonmessage"
+	cerrdefs "github.com/containerd/errdefs"
+	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -31,16 +30,15 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	if _, _, err := dockerClient.ImageInspectWithRaw(context.Background(), testImage); err != nil {
-		if client.IsErrNotFound(err) {
-			pullOutput, err := dockerClient.ImagePull(context.Background(), testImage, image.PullOptions{})
+	if _, err := dockerClient.ImageInspect(context.Background(), testImage); err != nil {
+		if cerrdefs.IsNotFound(err) {
+			pullResp, err := dockerClient.ImagePull(context.Background(), testImage, client.ImagePullOptions{})
 			if err != nil {
 				panic(err)
 			}
-			defer pullOutput.Close()
+			defer pullResp.Close()
 
-			err = jsonmessage.DisplayJSONMessagesStream(pullOutput, os.Stderr, 0, false, nil)
-			if err != nil {
+			if err := pullResp.Wait(context.Background()); err != nil {
 				panic(err)
 			}
 		} else {
